@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -9,6 +7,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Repositories;
 using Repositories.Repos;
 using Xunit;
@@ -46,46 +46,36 @@ public class VenuesApiTests : IClassFixture<TestApiFactory>
 
 public class TestApiFactory : WebApplicationFactory<Program>
 {
-  private readonly string _databaseName = $"ApiIntegrationTests_{Guid.NewGuid():N}";
-
   public static readonly Guid SeededVenueId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-  protected override void ConfigureWebHost(IWebHostBuilder builder)
+  protected override IHost CreateHost(IHostBuilder builder)
   {
-    builder.UseEnvironment("Testing");
-
+    builder.UseEnvironment(Environments.Development);
     builder.ConfigureServices(services =>
     {
-      var contextDescriptor = services.SingleOrDefault(descriptor => descriptor.ServiceType == typeof(AppDbContext));
-      if (contextDescriptor is not null)
-      {
-        services.Remove(contextDescriptor);
-      }
-
-      var optionsDescriptor = services.SingleOrDefault(descriptor => descriptor.ServiceType == typeof(DbContextOptions<AppDbContext>));
-      if (optionsDescriptor is not null)
-      {
-        services.Remove(optionsDescriptor);
-      }
-
-      services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(_databaseName));
-
-      using var scope = services.BuildServiceProvider().CreateScope();
-      var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-      context.Database.EnsureCreated();
-
-      if (!context.Venues.Any(v => v.VenueId == SeededVenueId))
-      {
-        context.Venues.Add(new Venue
-        {
-          VenueId = SeededVenueId,
-          Name = "Test Arena",
-          City = "Metropolis",
-          Capacity = 5000
-        });
-        context.SaveChanges();
-      }
+      services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
+      services.AddDbContext<AppDbContext>(options =>
+        options.UseInMemoryDatabase($"ApiIntegrationTests_{Guid.NewGuid():N}"));
     });
+
+    var host = base.CreateHost(builder);
+
+    using var scope = host.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+
+    if (!context.Venues.Any())
+    {
+      context.Venues.Add(new Venue
+      {
+        VenueId = SeededVenueId,
+        Name = "Test Arena",
+        City = "Metropolis",
+        Capacity = 5000
+      });
+      context.SaveChanges();
+    }
+
+    return host;
   }
 }
