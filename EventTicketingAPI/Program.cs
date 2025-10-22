@@ -1,5 +1,7 @@
 using EventTicketingAPI.DI;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
