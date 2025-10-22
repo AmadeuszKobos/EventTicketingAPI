@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,14 +6,20 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace EventTicketingAPI.Tests.Infrastructure;
 
 internal class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>, IQueryable<T>
 {
-  public TestAsyncEnumerable(IEnumerable<T> enumerable) : base(enumerable) { }
-  public TestAsyncEnumerable(Expression expression) : base(expression) { }
+  public TestAsyncEnumerable(IEnumerable<T> enumerable) : base(enumerable)
+  {
+  }
+
+  public TestAsyncEnumerable(Expression expression) : base(expression)
+  {
+  }
 
   public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
       new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
@@ -56,9 +63,13 @@ internal class TestAsyncQueryProvider<TEntity> : IAsyncQueryProvider
     return _inner.Execute<TResult>(rewritten);
   }
 
-  public Task<TResult> ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken = default) =>
-      Task.FromResult(Execute<TResult>(expression));
+  // EF Core's IAsyncQueryProvider expects this signature:
+  // TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken);
+  // TResult is often a Task<T> at the call site; delegate to Execute<TResult>.
+  public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken = default) =>
+      Execute<TResult>(expression);
 
+  // Keep IAsyncEnumerable<TResult> overload for async enumerable scenarios.
   public IAsyncEnumerable<TResult> ExecuteAsync<TResult>(Expression expression) =>
       new TestAsyncEnumerable<TResult>(expression);
 }
@@ -146,12 +157,4 @@ internal sealed class AsyncMethodRewriter : ExpressionVisitor
 
     throw new InvalidOperationException($"Unable to locate synchronous counterpart for {asyncMethod.Name}.");
   }
-}
-  public TResult Execute<TResult>(Expression expression) => _inner.Execute<TResult>(expression);
-
-  public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken) =>
-      Execute<TResult>(expression);
-
-  public IAsyncEnumerable<TResult> ExecuteAsync<TResult>(Expression expression) =>
-      new TestAsyncEnumerable<TResult>(expression);
 }

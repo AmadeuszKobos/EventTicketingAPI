@@ -64,7 +64,7 @@ namespace Services.Services
       await _tickets.MarkSoldAsync(tickets, ct);  // sets Status = "sold"
 
       // reload with includes for mapping
-      var saved = await _orders.GetById(order.OrderId).FirstAsync(ct);
+      var saved = _orders.GetById(order.OrderId).FirstOrDefault();
       return Mapper.Map(saved);
     }
 
