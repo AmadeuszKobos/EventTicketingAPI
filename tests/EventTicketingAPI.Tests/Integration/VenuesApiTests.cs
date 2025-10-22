@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -8,7 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Repositories;
 using Repositories.Repos;
@@ -47,33 +46,25 @@ public class VenuesApiTests : IClassFixture<TestApiFactory>
 
 public class TestApiFactory : WebApplicationFactory<Program>
 {
-  private readonly string _databaseName = $"ApiIntegrationTests_{Guid.NewGuid():N}";
-
   public static readonly Guid SeededVenueId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
-  protected override void ConfigureWebHost(IWebHostBuilder builder)
-  {
-    builder.UseEnvironment("Testing");
-
-    builder.ConfigureAppConfiguration((context, configBuilder) =>
-    {
-      configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-      {
-        ["Testing:InMemoryDatabaseName"] = _databaseName
-      });
-    });
-  }
 
   protected override IHost CreateHost(IHostBuilder builder)
   {
+    builder.UseEnvironment(Environments.Development);
+    builder.ConfigureServices(services =>
+    {
+      services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
+      services.AddDbContext<AppDbContext>(options =>
+        options.UseInMemoryDatabase($"ApiIntegrationTests_{Guid.NewGuid():N}"));
+    });
+
     var host = base.CreateHost(builder);
 
     using var scope = host.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
     context.Database.EnsureCreated();
 
-    if (!context.Venues.Any(v => v.VenueId == SeededVenueId))
+    if (!context.Venues.Any())
     {
       context.Venues.Add(new Venue
       {

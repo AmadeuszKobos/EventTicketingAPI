@@ -6,21 +6,16 @@ using Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+if (builder.Environment.IsEnvironment("Testing"))
 {
-  var env = serviceProvider.GetRequiredService<IHostEnvironment>();
-  if (env.IsEnvironment("Testing"))
-  {
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var databaseName = configuration.GetValue<string>("Testing:InMemoryDatabaseName") ?? "EventTicketingApiTests";
-    options.UseInMemoryDatabase(databaseName);
-  }
-  else
-  {
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
-  }
-});
+  builder.Services.AddDbContext<AppDbContext>(options =>
+      options.UseInMemoryDatabase("EventTicketingApiTests"));
+}
+else
+{
+  builder.Services.AddDbContext<AppDbContext>(options =>
+      options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
