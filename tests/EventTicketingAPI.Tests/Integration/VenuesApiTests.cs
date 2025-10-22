@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Repositories;
 using Repositories.Repos;
 using Xunit;
-using System.Linq;
 
 namespace EventTicketingAPI.Tests.Integration;
 
@@ -48,38 +48,34 @@ public class TestApiFactory : WebApplicationFactory<Program>
 {
   public static readonly Guid SeededVenueId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-  protected override void ConfigureWebHost(IWebHostBuilder builder)
+  protected override IHost CreateHost(IHostBuilder builder)
   {
     builder.UseEnvironment(Environments.Development);
     builder.ConfigureServices(services =>
     {
-      var descriptor = services.SingleOrDefault(
-        d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
-      if (descriptor != null)
-      {
-        services.Remove(descriptor);
-      }
-
+      services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
       services.AddDbContext<AppDbContext>(options =>
         options.UseInMemoryDatabase($"ApiIntegrationTests_{Guid.NewGuid():N}"));
-
-      var serviceProvider = services.BuildServiceProvider();
-
-      using var scope = serviceProvider.CreateScope();
-      var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-      context.Database.EnsureCreated();
-
-      if (!context.Venues.Any())
-      {
-        context.Venues.Add(new Venue
-        {
-          VenueId = SeededVenueId,
-          Name = "Test Arena",
-          City = "Metropolis",
-          Capacity = 5000
-        });
-        context.SaveChanges();
-      }
     });
+
+    var host = base.CreateHost(builder);
+
+    using var scope = host.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+
+    if (!context.Venues.Any())
+    {
+      context.Venues.Add(new Venue
+      {
+        VenueId = SeededVenueId,
+        Name = "Test Arena",
+        City = "Metropolis",
+        Capacity = 5000
+      });
+      context.SaveChanges();
+    }
+
+    return host;
   }
 }
