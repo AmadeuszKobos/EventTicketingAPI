@@ -9,8 +9,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Repositories;
 using Repositories.Repos;
 using Xunit;
@@ -48,36 +46,42 @@ public class VenuesApiTests : IClassFixture<TestApiFactory>
 
 public class TestApiFactory : WebApplicationFactory<Program>
 {
+  private readonly string _databaseName = $"ApiIntegrationTests_{Guid.NewGuid():N}";
+
   public static readonly Guid SeededVenueId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-  protected override IHost CreateHost(IHostBuilder builder)
+  protected override void ConfigureWebHost(IWebHostBuilder builder)
   {
-    builder.UseEnvironment(Environments.Development);
-    builder.ConfigureServices(services =>
+    builder.UseEnvironment("Testing");
+
+    builder.ConfigureAppConfiguration((_, configBuilder) =>
     {
-      services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
-      services.AddDbContext<AppDbContext>(options =>
-        options.UseInMemoryDatabase($"ApiIntegrationTests_{Guid.NewGuid():N}"));
+      var testingSettings = new Dictionary<string, string?>
+      {
+        ["Testing:InMemoryDatabaseName"] = _databaseName
+      };
+
+      configBuilder.AddInMemoryCollection(testingSettings);
     });
 
-    var host = base.CreateHost(builder);
-
-    using var scope = host.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
-
-    if (!context.Venues.Any())
+    builder.ConfigureServices(services =>
     {
-      context.Venues.Add(new Venue
-      {
-        VenueId = SeededVenueId,
-        Name = "Test Arena",
-        City = "Metropolis",
-        Capacity = 5000
-      });
-      context.SaveChanges();
-    }
+      using var scope = services.BuildServiceProvider().CreateScope();
+      var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    return host;
+      context.Database.EnsureCreated();
+
+      if (!context.Venues.Any(v => v.VenueId == SeededVenueId))
+      {
+        context.Venues.Add(new Venue
+        {
+          VenueId = SeededVenueId,
+          Name = "Test Arena",
+          City = "Metropolis",
+          Capacity = 5000
+        });
+        context.SaveChanges();
+      }
+    });
   }
 }

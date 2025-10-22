@@ -6,18 +6,18 @@ using Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+var environment = builder.Environment;
+var configuration = builder.Configuration;
+
+builder.Services.AddDbContext<AppDbContext>(options =>
 {
-  var env = serviceProvider.GetRequiredService<IHostEnvironment>();
-  if (env.IsEnvironment("Testing"))
+  if (environment.IsEnvironment("Testing"))
   {
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
     var databaseName = configuration.GetValue<string>("Testing:InMemoryDatabaseName") ?? "EventTicketingApiTests";
     options.UseInMemoryDatabase(databaseName);
   }
   else
   {
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
     options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
   }
 });
@@ -44,5 +44,4 @@ app.MapControllers();
 
 app.Run();
 
-public partial class Program
-{ }
+public partial class Program { }
